@@ -202,6 +202,9 @@
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("pointerup", onPointerUp);
     document.addEventListener("pointercancel", () => clearTimeout(holdTimer));
+    // Stops the browser's native "drag this image" behavior from hijacking
+    // mouse-drag swipes (touch isn't affected by this, but a mouse is).
+    document.addEventListener("dragstart", (e) => e.preventDefault());
   }
 
   function init() {

@@ -24,6 +24,8 @@ html, body {
   object-fit: cover;
   opacity: 0;
   transition: opacity 1.8s ease;
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 
 .photo.visible {
