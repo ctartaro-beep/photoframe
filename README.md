@@ -41,9 +41,16 @@ Settings → Device Options → tap "Serial Number" 7 times to unlock Developer 
 **Load the page full-screen, one of two ways:**
 
 - *Simple:* Open the GitHub Pages URL in Silk browser, then browser menu → **Add to Home Screen**.
-- *More locked-down:* Install **Fully Kiosk Browser** from the Amazon Appstore, set its start URL to your GitHub Pages link, enable kiosk/auto-start — this also auto-relaunches after a reboot or crash.
+- *More locked-down:* Fully Kiosk Browser is no longer on the Amazon Appstore, but still works — sideload it: Settings → Apps from Unknown Sources → enable for Silk, then download the "Fully Kiosk Browser APK for Fire OS" from fully-kiosk.com and install it. Set its start URL to your GitHub Pages link and enable kiosk/auto-start; it also auto-relaunches after a reboot or crash. (Free version has a watermark; a ~$7–8 one-time license per device removes it.) If you'd rather not sideload, **ClickSimply Kiosk** on the Amazon Appstore does the same basic job without needing Unknown Sources enabled.
 
 **Mount it**, plug it in, done.
+
+## Touch controls
+
+- **Tap** — skip to the next photo.
+- **Swipe left / right** — next / previous photo.
+- **Double-tap** — show or hide the clock/date overlay.
+- **Press and hold (~0.5s)** — pause the slideshow on the current photo; press and hold again to resume. A small "Paused" pill appears top-left while paused.
 
 ## Troubleshooting
 

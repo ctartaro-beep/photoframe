@@ -36,6 +36,29 @@ html, body {
   right: 44px;
   text-align: right;
   text-shadow: 0 2px 14px rgba(0,0,0,0.7);
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+#overlay.hidden {
+  opacity: 0;
+}
+
+#pause-indicator {
+  position: absolute;
+  top: 28px;
+  left: 28px;
+  background: rgba(0,0,0,0.55);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 15px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+#pause-indicator.visible {
+  opacity: 1;
 }
 
 #clock {
