@@ -46,6 +46,23 @@ html, body {
   opacity: 0;
 }
 
+#caption {
+  position: absolute;
+  bottom: 36px;
+  left: 44px;
+  max-width: 55%;
+  font-size: 20px;
+  line-height: 1.4;
+  white-space: pre-line;
+  text-shadow: 0 2px 14px rgba(0,0,0,0.8);
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+#caption.hidden {
+  opacity: 0;
+}
+
 #pause-indicator {
   position: absolute;
   top: 28px;

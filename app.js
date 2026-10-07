@@ -38,6 +38,30 @@
     return arr;
   }
 
+  // Builds the caption lines (date taken, description, etc.) for one photo.
+  function buildCaption(f) {
+    const meta = f.imageMediaMetadata || {};
+    const lines = [];
+
+    // EXIF time looks like "2019:08:14 15:22:10"; fall back to upload time.
+    let when = null;
+    if (meta.time) {
+      const m = meta.time.match(/^(\d{4}):(\d{2}):(\d{2})/);
+      if (m) when = new Date(+m[1], +m[2] - 1, +m[3]);
+    }
+    if (!when && f.createdTime) when = new Date(f.createdTime);
+    if (when && !isNaN(when)) {
+      lines.push(when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }));
+    }
+
+    if (f.description) lines.push(f.description);
+    if (CFG.SHOW_FILENAME) lines.push(f.name);
+    if (CFG.SHOW_CAMERA && meta.cameraModel) {
+      lines.push([meta.cameraMake, meta.cameraModel].filter(Boolean).join(" "));
+    }
+    return lines.join("\n");
+  }
+
   async function fetchPhotos() {
     const url = new URL("https://www.googleapis.com/drive/v3/files");
     url.searchParams.set("key", CFG.GOOGLE_API_KEY);
@@ -45,7 +69,7 @@
       "q",
       `'${CFG.DRIVE_FOLDER_ID}' in parents and mimeType contains 'image/' and trashed = false`
     );
-    url.searchParams.set("fields", "files(id,name)");
+    url.searchParams.set("fields", "files(id,name,description,createdTime,imageMediaMetadata(time,cameraMake,cameraModel,location))");
     url.searchParams.set("pageSize", "1000");
 
     const res = await fetch(url);
@@ -55,7 +79,10 @@
     const files = data.files || [];
     if (files.length === 0) throw new Error("No images found in the Drive folder.");
 
-    photos = shuffle(files.map((f) => `https://drive.google.com/thumbnail?id=${f.id}&sz=w1920-h1200`));
+    photos = shuffle(files.map((f) => ({
+      url: `https://drive.google.com/thumbnail?id=${f.id}&sz=w1920-h1200`,
+      caption: buildCaption(f),
+    })));
     setStatus("");
   }
 
@@ -66,7 +93,8 @@
     const showEl = document.getElementById(activePhotoEl === "a" ? "photo-a" : "photo-b");
     const hideEl = document.getElementById(activePhotoEl === "a" ? "photo-b" : "photo-a");
 
-    showEl.src = photos[photoIndex];
+    showEl.src = photos[photoIndex].url;
+    document.getElementById("caption").textContent = photos[photoIndex].caption;
     showEl.onload = () => {
       showEl.classList.add("visible");
       hideEl.classList.remove("visible");
@@ -153,8 +181,36 @@
     restartAutoAdvance();
   }
 
-  function toggleOverlay() {
-    document.getElementById("overlay").classList.toggle("hidden");
+  // Clock and caption are toggled independently, and the choice is
+  // remembered across restarts (best-effort; storage can be unavailable).
+  function savePref(key, hidden) {
+    try { localStorage.setItem(key, hidden ? "hidden" : "shown"); } catch (e) {}
+  }
+
+  function loadPref(key, defaultHidden) {
+    try {
+      const v = localStorage.getItem(key);
+      if (v) return v === "hidden";
+    } catch (e) {}
+    return defaultHidden;
+  }
+
+  function toggleClock() {
+    const hidden = document.getElementById("overlay").classList.toggle("hidden");
+    savePref("clockHidden", hidden);
+  }
+
+  function toggleCaption() {
+    const hidden = document.getElementById("caption").classList.toggle("hidden");
+    savePref("captionHidden", hidden);
+  }
+
+  function applySavedPrefs() {
+    document.getElementById("overlay").classList.toggle("hidden", loadPref("clockHidden", false));
+    document.getElementById("caption").classList.toggle(
+      "hidden",
+      loadPref("captionHidden", !CFG.CAPTION_ON_BY_DEFAULT)
+    );
   }
 
   function onPointerDown(e) {
@@ -188,7 +244,8 @@
     if (now - lastTapTime < DOUBLE_TAP_MS) {
       clearTimeout(pendingTapTimer);
       lastTapTime = 0;
-      toggleOverlay();
+      // Double-tap left half = caption, right half = clock.
+      if (e.clientX < window.innerWidth / 2) toggleCaption(); else toggleClock();
     } else {
       lastTapTime = now;
       pendingTapTimer = setTimeout(() => {
@@ -214,6 +271,7 @@
     loadAndStart();
     setInterval(() => fetchPhotos().catch((err) => console.error(err)), CFG.PHOTOS_REFRESH_MINUTES * 60 * 1000);
 
+    applySavedPrefs();
     initGestures();
     requestWakeLock();
   }

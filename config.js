@@ -18,4 +18,14 @@ window.CONFIG = {
 
   // How often (minutes) to re-check the Drive folder for new/removed photos.
   PHOTOS_REFRESH_MINUTES: 5,
+
+  // Whether the photo caption is shown the first time the page loads.
+  // Double-tap the left half of the screen to turn it on/off; that choice is
+  // then remembered on the device.
+  CAPTION_ON_BY_DEFAULT: false,
+
+  // Caption extras (the date taken and any Drive description show when the
+  // caption is on).
+  SHOW_FILENAME: false,
+  SHOW_CAMERA: false,
 };
