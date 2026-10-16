@@ -2,6 +2,13 @@
 // Family Photo Frame — app logic
 // Full-time slideshow of photos pulled from a public Google Drive folder,
 // with a small clock/date overlay in the corner.
+//
+// Orientation: the same deploy serves landscape and portrait frames from one
+// Drive folder. Set CONFIG.ORIENTATION, or override per device with a query
+// string:
+//     .../photoframe/              -> whatever config.js says
+//     .../photoframe/?o=portrait   -> portrait photos only
+//     .../photoframe/?o=landscape  -> landscape photos only
 // ==========================================================================
 
 (function () {
@@ -26,6 +33,37 @@
     document.getElementById("date").textContent = now.toLocaleDateString(undefined, {
       weekday: "long", month: "long", day: "numeric",
     });
+  }
+
+  // ---------------------------------------------------------- orientation
+
+  // A ?o= query string beats config.js, so one deploy can feed two tablets.
+  function wantedOrientation() {
+    const q = new URLSearchParams(window.location.search);
+    const v = (q.get("o") || q.get("orientation") || CFG.ORIENTATION || "any")
+      .toString().trim().toLowerCase();
+    return (v === "portrait" || v === "landscape") ? v : "any";
+  }
+
+  // Drive reports the dimensions of the STORED image plus a rotation count.
+  // An odd rotation means the photo displays turned on its side, so the
+  // stored width and height are swapped relative to what you actually see.
+  // Skip this and a large share of portraits get treated as landscape.
+  function orientationOf(f) {
+    const meta = f.imageMediaMetadata || {};
+    let w = meta.width;
+    let h = meta.height;
+    if (!w || !h) return null; // Drive couldn't read it (some PNGs, odd files)
+    if (meta.rotation === 1 || meta.rotation === 3) { const t = w; w = h; h = t; }
+    return w >= h ? "landscape" : "portrait"; // square counts as landscape
+  }
+
+  // Ask Drive for a thumbnail box that suits the photo's own shape. The old
+  // fixed w1920-h1200 box capped portraits at 1200 tall, which is noticeably
+  // soft on a tablet mounted in portrait.
+  function thumbUrl(f) {
+    const box = orientationOf(f) === "portrait" ? "w1280-h1920" : "w1920-h1280";
+    return `https://drive.google.com/thumbnail?id=${f.id}&sz=${box}`;
   }
 
   // --------------------------------------------------------------- photos
@@ -62,25 +100,58 @@
     return lines.join("\n");
   }
 
+  // Drive returns at most 1000 files per call. That was fine when every photo
+  // was used; once we filter by orientation, stopping at the first page could
+  // silently cut the album short. So follow nextPageToken.
+  async function fetchAllFiles() {
+    const all = [];
+    let pageToken = null;
+
+    do {
+      const url = new URL("https://www.googleapis.com/drive/v3/files");
+      url.searchParams.set("key", CFG.GOOGLE_API_KEY);
+      url.searchParams.set(
+        "q",
+        `'${CFG.DRIVE_FOLDER_ID}' in parents and mimeType contains 'image/' and trashed = false`
+      );
+      // width/height/rotation are what make the orientation filter possible.
+      url.searchParams.set(
+        "fields",
+        "nextPageToken,files(id,name,description,createdTime," +
+        "imageMediaMetadata(time,cameraMake,cameraModel,location,width,height,rotation))"
+      );
+      url.searchParams.set("pageSize", "1000");
+      if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Drive API ${res.status}`);
+      const data = await res.json();
+
+      all.push.apply(all, data.files || []);
+      pageToken = data.nextPageToken || null;
+    } while (pageToken && all.length < 10000); // sanity bound
+
+    return all;
+  }
+
   async function fetchPhotos() {
-    const url = new URL("https://www.googleapis.com/drive/v3/files");
-    url.searchParams.set("key", CFG.GOOGLE_API_KEY);
-    url.searchParams.set(
-      "q",
-      `'${CFG.DRIVE_FOLDER_ID}' in parents and mimeType contains 'image/' and trashed = false`
-    );
-    url.searchParams.set("fields", "files(id,name,description,createdTime,imageMediaMetadata(time,cameraMake,cameraModel,location))");
-    url.searchParams.set("pageSize", "1000");
-
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Drive API ${res.status}`);
-    const data = await res.json();
-
-    const files = data.files || [];
+    const files = await fetchAllFiles();
     if (files.length === 0) throw new Error("No images found in the Drive folder.");
 
-    photos = shuffle(files.map((f) => ({
-      url: `https://drive.google.com/thumbnail?id=${f.id}&sz=w1920-h1200`,
+    const want = wantedOrientation();
+    const kept = want === "any"
+      ? files
+      : files.filter((f) => orientationOf(f) === want);
+
+    if (kept.length === 0) {
+      throw new Error(
+        `Found ${files.length} photos but none are ${want}. ` +
+        `Check the ?o= value, or whether Drive reported dimensions for these files.`
+      );
+    }
+
+    photos = shuffle(kept.map((f) => ({
+      url: thumbUrl(f),
       caption: buildCaption(f),
     })));
     setStatus("");
