@@ -382,6 +382,5 @@
     initGestures(document.addEventListener("keydown", onKeyDown);
     requestWakeLock();
   }
-
   document.addEventListener("DOMContentLoaded", init);
 })();
