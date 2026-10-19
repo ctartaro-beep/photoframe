@@ -333,6 +333,42 @@
     // Stops the browser's native "drag this image" behavior from hijacking
     // mouse-drag swipes (touch isn't affected by this, but a mouse is).
     document.addEventListener("dragstart", (e) => e.preventDefault());
+      // -------------------------------------------------------------- keyboard
+  //
+  // Left/Right (or Up/Down, PageUp/PageDown) step through photos.
+  // Space pauses — the touch equivalent is press-and-hold, which a keyboard
+  // has no way to do.
+
+  function onKeyDown(e) {
+    // Ignore auto-repeat from a held key. Each press starts a fresh image
+    // load, so holding one down would hammer Drive's thumbnail endpoint.
+    if (e.repeat) return;
+
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+      case "PageDown":
+        showNextPhoto();
+        restartAutoAdvance();
+        break;
+
+      case "ArrowLeft":
+      case "ArrowUp":
+      case "PageUp":
+        showPreviousPhoto();
+        restartAutoAdvance();
+        break;
+
+      case " ":
+      case "Spacebar":
+        setPaused(!paused);
+        break;
+
+      default:
+        return;  // leave every other key alone
+    }
+    e.preventDefault();
+  }
   }
 
   function init() {
@@ -343,7 +379,7 @@
     setInterval(() => fetchPhotos().catch((err) => console.error(err)), CFG.PHOTOS_REFRESH_MINUTES * 60 * 1000);
 
     applySavedPrefs();
-    initGestures();
+    initGestures(document.addEventListener("keydown", onKeyDown);
     requestWakeLock();
   }
 
