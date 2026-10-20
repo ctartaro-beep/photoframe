@@ -333,11 +333,16 @@
     // Stops the browser's native "drag this image" behavior from hijacking
     // mouse-drag swipes (touch isn't affected by this, but a mouse is).
     document.addEventListener("dragstart", (e) => e.preventDefault());
-      // -------------------------------------------------------------- keyboard
+  }
+
+  // -------------------------------------------------------------- keyboard
   //
   // Left/Right (or Up/Down, PageUp/PageDown) step through photos.
   // Space pauses — the touch equivalent is press-and-hold, which a keyboard
   // has no way to do.
+  //
+  // PageUp/PageDown are here because a Bluetooth presentation clicker sends
+  // those, which turns a $20 remote into a control for the wall frame.
 
   function onKeyDown(e) {
     // Ignore auto-repeat from a held key. Each press starts a fresh image
@@ -369,6 +374,9 @@
     }
     e.preventDefault();
   }
+
+  function initKeyboard() {
+    document.addEventListener("keydown", onKeyDown);
   }
 
   function init() {
@@ -379,8 +387,10 @@
     setInterval(() => fetchPhotos().catch((err) => console.error(err)), CFG.PHOTOS_REFRESH_MINUTES * 60 * 1000);
 
     applySavedPrefs();
-    initGestures(document.addEventListener("keydown", onKeyDown);
+    initGestures();
+    initKeyboard();
     requestWakeLock();
   }
+
   document.addEventListener("DOMContentLoaded", init);
 })();
