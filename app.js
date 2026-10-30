@@ -9,6 +9,8 @@
 //     .../photoframe/              -> whatever config.js says
 //     .../photoframe/?o=portrait   -> portrait photos only
 //     .../photoframe/?o=landscape  -> landscape photos only
+//     .../photoframe/?o=auto       -> match the screen's current shape, and
+//                                     re-match when it's rotated or resized
 // ==========================================================================
 
 (function () {
@@ -16,6 +18,7 @@
 
   const CFG = window.CONFIG;
 
+  let allFiles = [];   // everything in the Drive folder, unfiltered
   let photos = [];
   let photoIndex = -1;
   let activePhotoEl = "a";
@@ -38,10 +41,19 @@
   // ---------------------------------------------------------- orientation
 
   // A ?o= query string beats config.js, so one deploy can feed two tablets.
-  function wantedOrientation() {
+  function orientationSetting() {
     const q = new URLSearchParams(window.location.search);
-    const v = (q.get("o") || q.get("orientation") || CFG.ORIENTATION || "any")
+    return (q.get("o") || q.get("orientation") || CFG.ORIENTATION || "any")
       .toString().trim().toLowerCase();
+  }
+
+  function screenOrientation() {
+    return window.innerWidth >= window.innerHeight ? "landscape" : "portrait";
+  }
+
+  function wantedOrientation() {
+    const v = orientationSetting();
+    if (v === "auto") return screenOrientation();
     return (v === "portrait" || v === "landscape") ? v : "any";
   }
 
@@ -134,27 +146,56 @@
     return all;
   }
 
-  async function fetchPhotos() {
-    const files = await fetchAllFiles();
-    if (files.length === 0) throw new Error("No images found in the Drive folder.");
+  let builtFor = null; // which orientation the current playlist was built for
 
+  // Filters the cached folder listing down to what this screen should show.
+  function buildPlaylist() {
     const want = wantedOrientation();
-    const kept = want === "any"
-      ? files
-      : files.filter((f) => orientationOf(f) === want);
+    let kept = want === "any"
+      ? allFiles
+      : allFiles.filter((f) => orientationOf(f) === want);
 
     if (kept.length === 0) {
-      throw new Error(
-        `Found ${files.length} photos but none are ${want}. ` +
-        `Check the ?o= value, or whether Drive reported dimensions for these files.`
-      );
+      // In auto mode an empty match just means the folder has none of this
+      // shape yet; show everything rather than a blank screen.
+      if (orientationSetting() !== "auto") {
+        throw new Error(
+          `Found ${allFiles.length} photos but none are ${want}. ` +
+          `Check the ?o= value, or whether Drive reported dimensions for these files.`
+        );
+      }
+      kept = allFiles;
     }
 
     photos = shuffle(kept.map((f) => ({
       url: thumbUrl(f),
       caption: buildCaption(f),
     })));
+    photoIndex = -1;
+    builtFor = want;
+  }
+
+  async function fetchPhotos() {
+    const files = await fetchAllFiles();
+    if (files.length === 0) throw new Error("No images found in the Drive folder.");
+    allFiles = files;
+    buildPlaylist();
     setStatus("");
+  }
+
+  // Auto mode: when a rotation or window resize flips the screen's shape,
+  // swap to the matching playlist straight away instead of waiting for the
+  // next refresh.
+  let resizeTimer = null;
+  function onResize() {
+    if (orientationSetting() !== "auto" || allFiles.length === 0) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (wantedOrientation() === builtFor) return;
+      buildPlaylist();
+      showNextPhoto();
+      restartAutoAdvance();
+    }, 300);
   }
 
   function showPhotoAtOffset(offset) {
@@ -254,13 +295,18 @@
 
   // Clock and caption are toggled independently, and the choice is
   // remembered across restarts (best-effort; storage can be unavailable).
+  // Frames that share an origin (the family frame and any sub-frame) keep
+  // their toggles apart via CONFIG.STORAGE_PREFIX (optional; the family frame
+  // has none, so its existing saved choices still apply).
+  const PREF_PREFIX = CFG.STORAGE_PREFIX || "";
+
   function savePref(key, hidden) {
-    try { localStorage.setItem(key, hidden ? "hidden" : "shown"); } catch (e) {}
+    try { localStorage.setItem(PREF_PREFIX + key, hidden ? "hidden" : "shown"); } catch (e) {}
   }
 
   function loadPref(key, defaultHidden) {
     try {
-      const v = localStorage.getItem(key);
+      const v = localStorage.getItem(PREF_PREFIX + key);
       if (v) return v === "hidden";
     } catch (e) {}
     return defaultHidden;
@@ -277,7 +323,10 @@
   }
 
   function applySavedPrefs() {
-    document.getElementById("overlay").classList.toggle("hidden", loadPref("clockHidden", false));
+    document.getElementById("overlay").classList.toggle(
+      "hidden",
+      loadPref("clockHidden", CFG.CLOCK_ON_BY_DEFAULT === false)
+    );
     document.getElementById("caption").classList.toggle(
       "hidden",
       loadPref("captionHidden", !CFG.CAPTION_ON_BY_DEFAULT)
@@ -387,6 +436,7 @@
     setInterval(() => fetchPhotos().catch((err) => console.error(err)), CFG.PHOTOS_REFRESH_MINUTES * 60 * 1000);
 
     applySavedPrefs();
+    window.addEventListener("resize", onResize);
     initGestures();
     initKeyboard();
     requestWakeLock();
