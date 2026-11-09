@@ -22,6 +22,8 @@ pulled from a public Google Drive folder, with a small clock overlay.
 3. Open the folder and copy the ID from the URL: `https://drive.google.com/drive/folders/`**`THIS_PART`** (not the whole URL — just that ID string).
 4. Adding/removing photos in that folder later (even from your phone) updates the display automatically, within `PHOTOS_REFRESH_MINUTES`.
 
+**How photos are picked:** like a deck of cards. Each frame shows every photo once in random order, then reshuffles for the next round. Photos added mid-round join the part of the round still to come, and deleted ones drop out. Progress is saved in the browser, so a reload carries on the same round. Press **i** on a keyboard, or add `?stats` to the address, to see "Round N · X of Y shown".
+
 ## 3. Fill in config.js
 
 Open `config.js` and paste in `GOOGLE_API_KEY` and `DRIVE_FOLDER_ID` (both already filled in from your setup). Adjust `PHOTO_INTERVAL_SECONDS` and `PHOTOS_REFRESH_MINUTES` if you want.
