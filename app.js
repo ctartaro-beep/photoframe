@@ -19,8 +19,12 @@
   const CFG = window.CONFIG;
 
   let allFiles = [];   // everything in the Drive folder, unfiltered
+  // The current round: every photo for this screen, once each, in shuffled
+  // order. photoIndex is how far through it we are. Photos are file objects
+  // straight from Drive.
   let photos = [];
   let photoIndex = -1;
+  let round = 1;
   let activePhotoEl = "a";
 
   // ---------------------------------------------------------------- clock
@@ -148,8 +152,15 @@
 
   let builtFor = null; // which orientation the current playlist was built for
 
-  // Filters the cached folder listing down to what this screen should show.
-  function buildPlaylist() {
+  // ------------------------------------------------------------ the round
+  //
+  // Photos are dealt like a deck of cards: each one once, in random order,
+  // then a fresh shuffle for the next round. Checking the folder for changes
+  // never reshuffles: new photos are slipped into the part of the round
+  // that's still to come, and deleted ones drop out. Progress is saved, so a
+  // reload (or the tablet restarting) carries on where it left off.
+
+  function wantedFiles() {
     const want = wantedOrientation();
     let kept = want === "any"
       ? allFiles
@@ -166,25 +177,108 @@
       }
       kept = allFiles;
     }
-
-    photos = shuffle(kept.map((f) => ({
-      url: thumbUrl(f),
-      caption: buildCaption(f),
-    })));
-    photoIndex = -1;
-    builtFor = want;
+    return kept;
   }
 
-  async function fetchPhotos() {
+  function roundKey() {
+    return `${PREF_PREFIX}round:${CFG.DRIVE_FOLDER_ID}:${builtFor}`;
+  }
+
+  function saveRound() {
+    try {
+      localStorage.setItem(roundKey(), JSON.stringify({
+        round,
+        index: photoIndex,
+        order: photos.map((f) => f.id),
+      }));
+    } catch (e) {} // storage full or blocked: the round just won't survive a reload
+  }
+
+  function loadRound() {
+    try { return JSON.parse(localStorage.getItem(roundKey()) || "null"); }
+    catch (e) { return null; }
+  }
+
+  // Puts each new photo at a random spot among the ones still to come.
+  function slipIn(list, fromIndex, newcomers) {
+    for (const f of shuffle(newcomers)) {
+      const at = fromIndex + 1 + Math.floor(Math.random() * (list.length - fromIndex));
+      list.splice(at, 0, f);
+    }
+  }
+
+  // Brings the round in line with what's in the folder now. With `fresh`,
+  // starts from saved progress (page load, or the screen changed shape).
+  function buildPlaylist(fresh) {
+    const files = wantedFiles();
+    const want = wantedOrientation();
+    const byId = new Map(files.map((f) => [f.id, f]));
+
+    let order, index;
+    if (fresh) {
+      builtFor = want;
+      const saved = loadRound();
+      if (saved && Array.isArray(saved.order)) {
+        order = saved.order;
+        index = saved.index;
+        round = saved.round || 1;
+      } else {
+        order = [];
+        index = -1;
+        round = 1;
+      }
+    } else {
+      order = photos.map((f) => f.id);
+      index = photoIndex;
+    }
+
+    // Drop photos that left the folder, keeping our place.
+    const kept = [];
+    let newIndex = -1;
+    order.forEach((id, i) => {
+      if (!byId.has(id)) return;
+      kept.push(byId.get(id));
+      if (i <= index) newIndex = kept.length - 1;
+    });
+
+    const known = new Set(kept.map((f) => f.id));
+    const newcomers = files.filter((f) => !known.has(f.id));
+
+    if (kept.length === 0) {
+      photos = shuffle(newcomers.slice());
+      photoIndex = -1;
+    } else {
+      photos = kept;
+      photoIndex = newIndex;
+      slipIn(photos, photoIndex, newcomers);
+    }
+    saveRound();
+    updateStats();
+  }
+
+  // Starts the next round once every photo has had its turn.
+  function newRound() {
+    const last = photos[photos.length - 1];
+    photos = shuffle(photos.slice());
+    // Don't open the new round with the photo that just closed the last one.
+    if (photos.length > 1 && photos[0] === last) {
+      const j = 1 + Math.floor(Math.random() * (photos.length - 1));
+      [photos[0], photos[j]] = [photos[j], photos[0]];
+    }
+    photoIndex = -1;
+    round += 1;
+  }
+
+  async function fetchPhotos(fresh) {
     const files = await fetchAllFiles();
     if (files.length === 0) throw new Error("No images found in the Drive folder.");
     allFiles = files;
-    buildPlaylist();
-    setStatus("");
+    buildPlaylist(fresh);
+    if (!showStats) setStatus("");
   }
 
   // Auto mode: when a rotation or window resize flips the screen's shape,
-  // swap to the matching playlist straight away instead of waiting for the
+  // swap to the matching round straight away instead of waiting for the
   // next refresh.
   let resizeTimer = null;
   function onResize() {
@@ -192,7 +286,7 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       if (wantedOrientation() === builtFor) return;
-      buildPlaylist();
+      buildPlaylist(true);
       showNextPhoto();
       restartAutoAdvance();
     }, 300);
@@ -200,19 +294,47 @@
 
   function showPhotoAtOffset(offset) {
     if (photos.length === 0) return;
-    photoIndex = (photoIndex + offset + photos.length) % photos.length;
+    let next = photoIndex + offset;
+    if (next >= photos.length) {
+      newRound();
+      next = 0;
+    } else if (next < 0) {
+      next = photos.length - 1; // stepping back past the start wraps
+    }
+    photoIndex = next;
+    saveRound();
+    updateStats();
 
+    const f = photos[photoIndex];
     const showEl = document.getElementById(activePhotoEl === "a" ? "photo-a" : "photo-b");
     const hideEl = document.getElementById(activePhotoEl === "a" ? "photo-b" : "photo-a");
 
-    showEl.src = photos[photoIndex].url;
-    document.getElementById("caption").textContent = photos[photoIndex].caption;
+    showEl.src = thumbUrl(f);
+    document.getElementById("caption").textContent = buildCaption(f);
     showEl.onload = () => {
       showEl.classList.add("visible");
       hideEl.classList.remove("visible");
     };
 
     activePhotoEl = activePhotoEl === "a" ? "b" : "a";
+  }
+
+  // ----------------------------------------------------------- progress
+  //
+  // Press "i" (or add ?stats to the address) to see how far through the
+  // round the frame is: "Round 2 · 37 of 212 shown".
+  let showStats = /[?&]stats\b/.test(window.location.search);
+
+  function updateStats() {
+    if (!showStats) return;
+    const shown = Math.max(0, photoIndex + 1);
+    const label = builtFor && builtFor !== "any" ? ` ${builtFor}` : "";
+    setStatus(`Round ${round} · ${shown} of ${photos.length}${label} shown`);
+  }
+
+  function toggleStats() {
+    showStats = !showStats;
+    if (showStats) updateStats(); else setStatus("");
   }
 
   function showNextPhoto() { showPhotoAtOffset(1); }
@@ -255,7 +377,7 @@
 
   async function loadAndStart() {
     try {
-      await fetchPhotos();
+      await fetchPhotos(true);
       showNextPhoto();
       restartAutoAdvance();
     } catch (err) {
@@ -418,6 +540,11 @@
         setPaused(!paused);
         break;
 
+      case "i":
+      case "I":
+        toggleStats();
+        break;
+
       default:
         return;  // leave every other key alone
     }
@@ -433,7 +560,8 @@
     setInterval(updateClock, 15000);
 
     loadAndStart();
-    setInterval(() => fetchPhotos().catch((err) => console.error(err)), CFG.PHOTOS_REFRESH_MINUTES * 60 * 1000);
+    // Pick up added/removed photos without disturbing the round in progress.
+    setInterval(() => fetchPhotos(false).catch((err) => console.error(err)), CFG.PHOTOS_REFRESH_MINUTES * 60 * 1000);
 
     applySavedPrefs();
     window.addEventListener("resize", onResize);
