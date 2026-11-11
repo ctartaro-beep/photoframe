@@ -28,4 +28,12 @@ window.CONFIG = {
   // caption is on).
   SHOW_FILENAME: false,
   SHOW_CAMERA: false,
+
+  // Generative ambient music that responds to each photo (see music.js).
+  // Double-tap the top of the screen, or press "m", to turn it on/off on a
+  // given device; that choice is remembered. ?music=off in the address
+  // forces it off for one frame.
+  MUSIC_ON_BY_DEFAULT: true,
+  MUSIC_VOLUME: 0.5,   // 0 to 1
+  MUSIC_KEY: "D",      // C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B
 };

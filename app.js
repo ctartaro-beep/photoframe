@@ -311,6 +311,8 @@
 
     showEl.src = thumbUrl(f);
     document.getElementById("caption").textContent = buildCaption(f);
+    // music.js listens for this and retunes the ambient music to the photo.
+    document.dispatchEvent(new CustomEvent("photoframe:photo", { detail: f }));
     showEl.onload = () => {
       showEl.classList.add("visible");
       hideEl.classList.remove("visible");
@@ -390,7 +392,8 @@
   //
   // Single tap / swipe left  -> next photo
   // Swipe right              -> previous photo
-  // Double tap                -> toggle the clock/date overlay
+  // Double tap                -> top strip: music on/off; left half: caption;
+//                              right half: clock/date overlay
   // Press and hold (~500ms)   -> pause/resume the slideshow
   //
   // Single tap and double tap both start as a "tap" (little movement, quick
@@ -486,8 +489,11 @@
     if (now - lastTapTime < DOUBLE_TAP_MS) {
       clearTimeout(pendingTapTimer);
       lastTapTime = 0;
-      // Double-tap left half = caption, right half = clock.
-      if (e.clientX < window.innerWidth / 2) toggleCaption(); else toggleClock();
+      // Double-tap top strip = music; otherwise left half = caption,
+      // right half = clock.
+      if (e.clientY < window.innerHeight * 0.25 && window.photoMusic) window.photoMusic.toggle();
+      else if (e.clientX < window.innerWidth / 2) toggleCaption();
+      else toggleClock();
     } else {
       lastTapTime = now;
       pendingTapTimer = setTimeout(() => {
@@ -543,6 +549,11 @@
       case "i":
       case "I":
         toggleStats();
+        break;
+
+      case "m":
+      case "M":
+        if (window.photoMusic) window.photoMusic.toggle();
         break;
 
       default:
