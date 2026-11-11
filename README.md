@@ -52,29 +52,7 @@ Settings → Device Options → tap "Serial Number" 7 times to unlock Developer 
 - **Tap** — skip to the next photo.
 - **Swipe left / right** — next / previous photo.
 - **Double-tap** — show or hide the clock/date overlay.
-- **Double-tap the top of the screen** — music on/off (keyboard: **m**).
 - **Press and hold (~0.5s)** — pause the slideshow on the current photo; press and hold again to resume. A small "Paused" pill appears top-left while paused.
-
-## Ambient music
-
-`music.js` plays generative ambient music, synthesized live in the browser (no audio files). A drone and a soft pad hold a chord, and six bell loops of unrelated lengths drift in and out of phase, so it never repeats exactly.
-
-Each photo steers it. A tiny copy of the photo is read for:
-
-| Photo | Music |
-|---|---|
-| Warmth (red vs. blue) | Mode, from aeolian (cool) to lydian (warm) |
-| Dominant hue | Chord: red I, yellow IV, green V, cyan vi, blue ii, magenta iii |
-| Brightness | How open the pad's filter is |
-| Saturation | How often and how loudly the bells ring |
-| Haze (low contrast) | More reverb |
-| Age (year taken) | Tape wobble, and hiss for older photos |
-
-The pad crossfades over about six seconds on each new photo.
-
-**Sound needs one tap.** Browsers won't start audio on their own, so a "♪ Tap for sound" pill shows until someone touches the screen; that tap only turns sound on. The Mac app can skip this: in the Electron `BrowserWindow`, set `webPreferences: { autoplayPolicy: "no-user-gesture-required" }`.
-
-Settings are in `config.js`: `MUSIC_ON_BY_DEFAULT`, `MUSIC_VOLUME`, `MUSIC_KEY`. Add `?music=off` to a frame's address to keep it silent.
 
 ## Troubleshooting
 

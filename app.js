@@ -311,7 +311,8 @@
 
     showEl.src = thumbUrl(f);
     document.getElementById("caption").textContent = buildCaption(f);
-    // music.js listens for this and retunes the ambient music to the photo.
+    // christartaro.com/photoframe loads its own music.js, which listens for
+    // this to retune its ambient music. Nothing here listens for it.
     document.dispatchEvent(new CustomEvent("photoframe:photo", { detail: f }));
     showEl.onload = () => {
       showEl.classList.add("visible");
@@ -392,8 +393,9 @@
   //
   // Single tap / swipe left  -> next photo
   // Swipe right              -> previous photo
-  // Double tap                -> top strip: music on/off; left half: caption;
-//                              right half: clock/date overlay
+  // Double tap                -> left half: caption; right half: clock/date
+//                              (top strip: music on/off, on pages that
+//                              load music.js)
   // Press and hold (~500ms)   -> pause/resume the slideshow
   //
   // Single tap and double tap both start as a "tap" (little movement, quick

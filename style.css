@@ -98,20 +98,3 @@ html, body {
   color: rgba(255,255,255,0.4);
   text-shadow: 0 1px 6px rgba(0,0,0,0.7);
 }
-
-#music-pill {
-  position: absolute;
-  top: 28px;
-  right: 28px;
-  background: rgba(0,0,0,0.55);
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 15px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.4s ease;
-}
-
-#music-pill.visible {
-  opacity: 1;
-}
