@@ -10,6 +10,8 @@
  *   PASSCODE   the passcode the tablets will enter (8+ characters)
  *   FOLDER_ID  the Drive folder's ID (the end of its URL)
  *
+ * Services (+ next to "Services" in the left sidebar) → Drive API → Add
+ *
  * Deploy → New deployment → Web app
  *   Execute as:      Me
  *   Who has access:  Anyone
@@ -23,7 +25,12 @@ var LOCK_SECONDS = 15 * 60;  // …per 15 minutes, then everything is refused
 function doPost(e) {
   var req = {};
   try { req = JSON.parse(e.postData.contents || "{}"); } catch (err) {}
-  return respond_(handle_(req));
+  try {
+    return respond_(handle_(req));
+  } catch (err) {
+    // Send the reason back so the frame can show it.
+    return respond_({ error: "server", message: String(err && err.message || err) });
+  }
 }
 
 // A plain visit in a browser just confirms the script is running.
@@ -54,17 +61,18 @@ function handle_(req) {
 // Every image in the folder, with the metadata the frame uses and a
 // short-lived thumbnail link the tablet can load directly.
 function listFolder_(folderId) {
-  var token = ScriptApp.getOAuthToken();
+  if (typeof Drive === "undefined") {
+    throw new Error("Add the Drive API service to the script (Services + → Drive API).");
+  }
   var files = [];
-  var pageToken = "";
+  var pageToken = null;
   do {
-    var url = "https://www.googleapis.com/drive/v3/files?" + [
-      "q=" + encodeURIComponent("'" + folderId + "' in parents and trashed=false and mimeType contains 'image/'"),
-      "pageSize=1000",
-      "fields=" + encodeURIComponent("nextPageToken,files(id,name,description,thumbnailLink,imageMediaMetadata(width,height,rotation,time,cameraMake,cameraModel))"),
-      pageToken ? "pageToken=" + encodeURIComponent(pageToken) : ""
-    ].join("&");
-    var res = JSON.parse(UrlFetchApp.fetch(url, { headers: { Authorization: "Bearer " + token } }).getContentText());
+    var res = Drive.Files.list({
+      q: "'" + folderId + "' in parents and trashed=false and mimeType contains 'image/'",
+      pageSize: 1000,
+      fields: "nextPageToken,files(id,name,description,thumbnailLink,imageMediaMetadata(width,height,rotation,time,cameraMake,cameraModel))",
+      pageToken: pageToken
+    });
     (res.files || []).forEach(function (f) {
       if (!f.thumbnailLink) return; // Drive hasn't made a preview yet; it will on a later check
       files.push({
@@ -75,7 +83,7 @@ function listFolder_(folderId) {
         thumb: f.thumbnailLink
       });
     });
-    pageToken = res.nextPageToken || "";
+    pageToken = res.nextPageToken || null;
   } while (pageToken);
   return files;
 }
@@ -84,10 +92,7 @@ function listFolder_(folderId) {
 // preview here, with the account's own access, and send the bytes back.
 function image_(id, box) {
   var token = ScriptApp.getOAuthToken();
-  var meta = JSON.parse(UrlFetchApp.fetch(
-    "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(id) + "?fields=thumbnailLink,parents",
-    { headers: { Authorization: "Bearer " + token } }
-  ).getContentText());
+  var meta = Drive.Files.get(id, { fields: "thumbnailLink,parents" });
   // Only serve files that live in the frame's folder.
   var folderId = PropertiesService.getScriptProperties().getProperty("FOLDER_ID");
   if (!meta.parents || meta.parents.indexOf(folderId) < 0 || !meta.thumbnailLink) return { error: "notfound" };

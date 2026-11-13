@@ -207,8 +207,10 @@
         method: "POST",
         body: JSON.stringify(Object.assign({ pass }, payload)),
       });
-      if (!res.ok) throw new Error(`Photo script ${res.status}`);
-      const data = await res.json();
+      if (!res.ok) throw new Error(`Photo script error: HTTP ${res.status}`);
+      let data;
+      try { data = await res.json(); }
+      catch (e) { throw new Error("Photo script error: it sent back a page instead of data (check the deployment)."); }
       if (data.error === "passcode") {
         storePasscode("");
         pass = "";
@@ -218,7 +220,7 @@
       if (data.error === "locked") {
         throw new Error("Too many wrong passcodes. Wait 15 minutes, then reload.");
       }
-      if (data.error) throw new Error(data.message || `Photo script error: ${data.error}`);
+      if (data.error) throw new Error(`Photo script error: ${data.message || data.error}`);
       storePasscode(pass);
       return data;
     }
@@ -520,7 +522,7 @@
       restartAutoAdvance();
     } catch (err) {
       setStatus(PRIVATE
-        ? (err.message.startsWith("Too many") ? err.message : "Couldn't load photos from the photo script. Check SCRIPT_URL in config.js.")
+        ? (/^(Too many|Photo script)/.test(err.message) ? err.message : "Couldn't reach the photo script: " + err.message)
         : "Couldn't load photos — check config.js and the Drive folder sharing settings.");
       console.error(err);
     }

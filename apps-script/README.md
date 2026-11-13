@@ -9,19 +9,20 @@ answers requests that carry the passcode.
 1. Go to <https://script.google.com>, click **New project**, name it
    "photoframe server", and replace everything in `Code.gs` with this
    folder's `Code.gs`. Save.
-2. **Project Settings** (gear icon) → **Script Properties** → **Add script property**, twice:
+2. In the left sidebar, click **+** next to **Services**, pick **Drive API**, and click **Add**.
+3. **Project Settings** (gear icon) → **Script Properties** → **Add script property**, twice:
    - `PASSCODE`: the passcode the tablets will enter (8+ characters)
    - `FOLDER_ID`: the family Drive folder's ID
-3. **Deploy → New deployment** → type **Web app**:
+4. **Deploy → New deployment** → type **Web app**:
    - Execute as: **Me**
    - Who has access: **Anyone**
 
    Click **Deploy**, then **Authorize access**, and allow it. Google shows an
    "unverified app" warning because it's your own script: click
    **Advanced → Go to photoframe server**.
-4. Copy the **Web app URL** (ends in `/exec`) and put it in `config.js` as
+5. Copy the **Web app URL** (ends in `/exec`) and put it in `config.js` as
    `SCRIPT_URL`.
-5. Check the frame shows photos, then set the Drive folder's sharing to
+6. Check the frame shows photos, then set the Drive folder's sharing to
    **Restricted**.
 
 ## Notes
