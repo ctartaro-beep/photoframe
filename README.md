@@ -22,6 +22,8 @@ pulled from a public Google Drive folder, with a small clock overlay.
 3. Open the folder and copy the ID from the URL: `https://drive.google.com/drive/folders/`**`THIS_PART`** (not the whole URL — just that ID string).
 4. Adding/removing photos in that folder later (even from your phone) updates the display automatically, within `PHOTOS_REFRESH_MINUTES`.
 
+**Photo shape filter:** `MAX_CROP` in config.js (0.10 for the family frame) skips photos whose shape would lose more than that fraction to cropping on the screen showing them. On the 16:10 tablets, 3:2 and 16:9 photos show; 4:3, square and odd shapes don't. Add `?crop=1` to a device's address to show everything there, or `?crop=0.2` to loosen it. On a screen where under a quarter of the photos would fit, the filter switches itself off.
+
 **How photos are picked:** like a deck of cards. Each frame shows every photo once in random order, then reshuffles for the next round. Photos added mid-round join the part of the round still to come, and deleted ones drop out. Progress is saved in the browser, so a reload carries on the same round. Press **i** on a keyboard, or add `?stats` to the address, to see "Round N · X of Y shown".
 
 ## 3. Fill in config.js

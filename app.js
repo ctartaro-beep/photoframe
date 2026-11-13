@@ -65,6 +65,25 @@
   // An odd rotation means the photo displays turned on its side, so the
   // stored width and height are swapped relative to what you actually see.
   // Skip this and a large share of portraits get treated as landscape.
+  // Width ÷ height as the photo is meant to be seen (rotation applied).
+  function ratioOf(f) {
+    const meta = f.imageMediaMetadata || {};
+    let w = meta.width;
+    let h = meta.height;
+    if (!w || !h) return null;
+    if (meta.rotation === 1 || meta.rotation === 3) { const t = w; w = h; h = t; }
+    return w / h;
+  }
+
+  // How much of a photo the screen will crop away (0 = none, 0.25 = a
+  // quarter), since photos are scaled to fill the whole screen.
+  function cropOf(f) {
+    const r = ratioOf(f);
+    if (!r) return 1;
+    const s = window.innerWidth / window.innerHeight;
+    return 1 - Math.min(r, s) / Math.max(r, s);
+  }
+
   function orientationOf(f) {
     const meta = f.imageMediaMetadata || {};
     let w = meta.width;
@@ -176,6 +195,18 @@
         );
       }
       kept = allFiles;
+    }
+
+    // CONFIG.MAX_CROP (or ?crop=0.1 in the address): skip photos whose shape
+    // is so different from the screen's that filling it would cut off more
+    // than this fraction. ?crop=1 turns it off.
+    const q = new URLSearchParams(window.location.search).get("crop");
+    const maxCrop = q !== null ? parseFloat(q) : CFG.MAX_CROP;
+    if (maxCrop > 0 && maxCrop < 1) {
+      const fits = kept.filter((f) => cropOf(f) <= maxCrop + 1e-9);
+      // On an unusually shaped screen almost nothing may fit; then the filter
+      // would gut the slideshow, so show everything instead.
+      if (fits.length >= kept.length * 0.25) kept = fits;
     }
     return kept;
   }

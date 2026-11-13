@@ -13,6 +13,12 @@ window.CONFIG = {
   // from the folder's URL: https://drive.google.com/drive/folders/<THIS_PART>
   DRIVE_FOLDER_ID: "1_RwB7K645IunJGV_za_tt2jQCPjR80He",
 
+  // Only show photos that fit the screen's shape: skip any that filling the
+  // screen would crop by more than this fraction (0.10 = 10%). On the 16:10
+  // tablets that keeps 3:2 and 16:9 photos and skips 4:3, square and other
+  // odd shapes. Set to 1 to show everything. Override per device with ?crop=.
+  MAX_CROP: 0.10,
+
   // How many seconds each photo stays on screen.
   PHOTO_INTERVAL_SECONDS: 10,
 
