@@ -231,15 +231,29 @@
     try {
       const box = orientationOf(f) === "portrait" ? "w1280-h1920" : "w1920-h1280";
       const data = await callScript({ img: f.id, box });
-      if (data.data) img.src = `data:${data.type || "image/jpeg"};base64,${data.data}`;
+      if (data.data) { img.src = `data:${data.type || "image/jpeg"};base64,${data.data}`; diag.fallback = "ok"; }
+      else diag.fallback = "empty";
     } catch (err) {
+      diag.fallback = err.message;
       console.error(err);
     }
+  }
+
+  // Private-mode diagnostics: if nothing has appeared 10 seconds after
+  // loading, say what happened instead of leaving a black screen.
+  const diag = { listed: null, tried: 0, loaded: 0, failed: 0, fallback: "", shown: false };
+  function reportIfStuck() {
+    setTimeout(() => {
+      if (diag.shown) return;
+      setStatus(`No photo yet. Script sent ${diag.listed === null ? "no list" : diag.listed + " photos"}; ` +
+        `image loads: ${diag.loaded} ok, ${diag.failed} failed${diag.fallback ? "; backup: " + diag.fallback : ""}.`);
+    }, 10000);
   }
 
   async function fetchAllFiles() {
     if (PRIVATE) {
       const data = await callScript({});
+      diag.listed = (data.files || []).length;
       return data.files || [];
     }
     const all = [];
@@ -449,11 +463,13 @@
     // this to retune its ambient music. Nothing here listens for it.
     document.dispatchEvent(new CustomEvent("photoframe:photo", { detail: f }));
     showEl.onload = () => {
+      diag.loaded++;
+      if (!diag.shown) { diag.shown = true; if (PRIVATE && !showStats) setStatus(""); }
       showEl.classList.add("visible");
       hideEl.classList.remove("visible");
     };
     showEl.onerror = PRIVATE && !showEl.src.startsWith("data:")
-      ? () => { showEl.onerror = null; loadViaScript(showEl, f); }
+      ? () => { diag.failed++; showEl.onerror = null; loadViaScript(showEl, f); }
       : null;
 
     activePhotoEl = activePhotoEl === "a" ? "b" : "a";
@@ -518,6 +534,7 @@
   async function loadAndStart() {
     try {
       await fetchPhotos(true);
+      if (PRIVATE) reportIfStuck();
       showNextPhoto();
       restartAutoAdvance();
     } catch (err) {
