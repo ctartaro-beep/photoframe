@@ -313,7 +313,7 @@
   }
 
   function roundKey() {
-    return `${PREF_PREFIX}round:${CFG.DRIVE_FOLDER_ID}:${builtFor}`;
+    return `${PREF_PREFIX}round:${CFG.DRIVE_FOLDER_ID || "private"}:${builtFor}`;
   }
 
   function saveRound() {

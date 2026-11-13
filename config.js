@@ -4,14 +4,11 @@
 // ==========================================================================
 
 window.CONFIG = {
-  // Google Cloud API key with the Drive API enabled.
-  // Restrict it (HTTP referrers = your GitHub Pages URL) before going live.
-  GOOGLE_API_KEY: "AIzaSyAgA2IrOMxRlo8fEjTdUcAvp9y7-uMpavI",
-
-  // The ID of a public Google Drive folder full of photos.
-  // Share the folder as "Anyone with the link — Viewer", then grab the ID
-  // from the folder's URL: https://drive.google.com/drive/folders/<THIS_PART>
-  DRIVE_FOLDER_ID: "1_RwB7K645IunJGV_za_tt2jQCPjR80He",
+  // Photos come from a PRIVATE Drive folder ("Family Frame") through the
+  // Apps Script in apps-script/Code.gs, running in Chris's Google account.
+  // It only answers devices that know the passcode; each device asks for it
+  // once. The folder ID and passcode live in the script's settings, not here.
+  SCRIPT_URL: "https://script.google.com/macros/s/AKfycbzJyzxaawYv4FVSmuxdQ-zb24Io2QDhntocYOJMpo7h6WjQeITpy_3r1ibZBRVU4FaS/exec",
 
   // Only show photos that fit the screen's shape: skip any that filling the
   // screen would crop by more than this fraction (0.10 = 10%). On the 16:10
