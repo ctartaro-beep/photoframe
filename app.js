@@ -98,6 +98,7 @@
   // soft on a tablet mounted in portrait.
   function thumbUrl(f) {
     const box = orientationOf(f) === "portrait" ? "w1280-h1920" : "w1920-h1280";
+    if (f.thumb) return f.thumb.replace(/=s\d+(-[a-z]+)?$/, "=" + box);
     return `https://drive.google.com/thumbnail?id=${f.id}&sz=${box}`;
   }
 
@@ -138,7 +139,107 @@
   // Drive returns at most 1000 files per call. That was fine when every photo
   // was used; once we filter by orientation, stopping at the first page could
   // silently cut the album short. So follow nextPageToken.
+  // ------------------------------------------------------- private mode
+  //
+  // With CONFIG.SCRIPT_URL set, photos come from a PRIVATE Drive folder via
+  // a Google Apps Script in the owner's account (apps-script/Code.gs). The
+  // script only answers requests carrying the passcode, which each device
+  // asks for once and then remembers.
+
+  const PRIVATE = !!CFG.SCRIPT_URL;
+  const PASS_KEY = "photoframe:passcode";
+
+  function storedPasscode() {
+    try { return localStorage.getItem(PASS_KEY) || ""; } catch (e) { return ""; }
+  }
+  function storePasscode(v) {
+    try { v ? localStorage.setItem(PASS_KEY, v) : localStorage.removeItem(PASS_KEY); } catch (e) {}
+  }
+
+  // Shows the passcode screen and resolves with whatever is entered.
+  function askPasscode(message) {
+    return new Promise((resolve) => {
+      let box = document.getElementById("passcode-screen");
+      if (!box) {
+        box = document.createElement("form");
+        box.id = "passcode-screen";
+        box.setAttribute("autocomplete", "off");
+        box.style.cssText = "position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;" +
+          "align-items:center;justify-content:center;gap:16px;background:#000;color:#ddd;" +
+          "font:16px/1.4 -apple-system,system-ui,sans-serif;";
+        box.innerHTML =
+          '<div style="font-size:22px;letter-spacing:.04em">photoframe</div>' +
+          '<div id="passcode-msg" style="opacity:.7;min-height:1.4em"></div>' +
+          '<input id="passcode-input" type="password" inputmode="text" autocapitalize="off" ' +
+          'style="font-size:22px;padding:10px 14px;width:min(320px,80vw);border-radius:8px;' +
+          'border:1px solid #444;background:#111;color:#fff;text-align:center" placeholder="Passcode">' +
+          '<button type="submit" style="font-size:18px;padding:10px 28px;border-radius:8px;' +
+          'border:0;background:#ddd;color:#000">Unlock</button>';
+        // Keep taps and keys on this screen from reaching the slideshow.
+        ["pointerdown", "pointerup", "keydown"].forEach((t) =>
+          box.addEventListener(t, (e) => e.stopPropagation()));
+        document.body.appendChild(box);
+      }
+      box.style.display = "flex";
+      document.getElementById("passcode-msg").textContent = message || "Enter the passcode to show photos";
+      const input = document.getElementById("passcode-input");
+      input.value = "";
+      setTimeout(() => input.focus(), 50);
+      box.onsubmit = (e) => {
+        e.preventDefault();
+        const v = input.value.trim();
+        if (!v) return;
+        box.style.display = "none";
+        resolve(v);
+      };
+    });
+  }
+
+  // Calls the script with the passcode, asking for it (again) when needed.
+  async function callScript(payload) {
+    let pass = storedPasscode();
+    let message = "";
+    for (;;) {
+      if (!pass) pass = await askPasscode(message);
+      // Sent as text/plain so the browser makes a simple request the
+      // Apps Script web app accepts (no CORS preflight).
+      const res = await fetch(CFG.SCRIPT_URL, {
+        method: "POST",
+        body: JSON.stringify(Object.assign({ pass }, payload)),
+      });
+      if (!res.ok) throw new Error(`Photo script ${res.status}`);
+      const data = await res.json();
+      if (data.error === "passcode") {
+        storePasscode("");
+        pass = "";
+        message = "That passcode didn't work. Try again.";
+        continue;
+      }
+      if (data.error === "locked") {
+        throw new Error("Too many wrong passcodes. Wait 15 minutes, then reload.");
+      }
+      if (data.error) throw new Error(data.message || `Photo script error: ${data.error}`);
+      storePasscode(pass);
+      return data;
+    }
+  }
+
+  // If a thumbnail link won't load, fetch the image through the script.
+  async function loadViaScript(img, f) {
+    try {
+      const box = orientationOf(f) === "portrait" ? "w1280-h1920" : "w1920-h1280";
+      const data = await callScript({ img: f.id, box });
+      if (data.data) img.src = `data:${data.type || "image/jpeg"};base64,${data.data}`;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   async function fetchAllFiles() {
+    if (PRIVATE) {
+      const data = await callScript({});
+      return data.files || [];
+    }
     const all = [];
     let pageToken = null;
 
@@ -349,6 +450,9 @@
       showEl.classList.add("visible");
       hideEl.classList.remove("visible");
     };
+    showEl.onerror = PRIVATE && !showEl.src.startsWith("data:")
+      ? () => { showEl.onerror = null; loadViaScript(showEl, f); }
+      : null;
 
     activePhotoEl = activePhotoEl === "a" ? "b" : "a";
   }
@@ -415,7 +519,9 @@
       showNextPhoto();
       restartAutoAdvance();
     } catch (err) {
-      setStatus("Couldn't load photos — check config.js and the Drive folder sharing settings.");
+      setStatus(PRIVATE
+        ? (err.message.startsWith("Too many") ? err.message : "Couldn't load photos from the photo script. Check SCRIPT_URL in config.js.")
+        : "Couldn't load photos — check config.js and the Drive folder sharing settings.");
       console.error(err);
     }
   }
