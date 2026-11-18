@@ -17,7 +17,7 @@ window.CONFIG = {
   MAX_CROP: 0.10,
 
   // How many seconds each photo stays on screen.
-  PHOTO_INTERVAL_SECONDS: 10,
+  PHOTO_INTERVAL_SECONDS: 8,
 
   // How often (minutes) to re-check the Drive folder for new/removed photos.
   PHOTOS_REFRESH_MINUTES: 5,
