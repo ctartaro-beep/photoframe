@@ -33,3 +33,13 @@ answers requests that carry the passcode.
   15 minutes.
 - If you edit `Code.gs` later, use **Deploy → Manage deployments → Edit →
   Version: New version** so the URL stays the same.
+
+## Making a device never forget the passcode
+
+Put it in the device's start address, after a `#`:
+
+    https://ctartaro-beep.github.io/photoframe/?o=portrait#passcode=YOUR-PASSCODE
+
+The part after `#` stays on the device (browsers never send it to a server).
+Spaces become `%20`, so `blue river 7` is `#passcode=blue%20river%207`. If the
+passcode changes, update the address on each device.

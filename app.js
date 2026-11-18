@@ -149,11 +149,33 @@
   const PRIVATE = !!CFG.SCRIPT_URL;
   const PASS_KEY = "photoframe:passcode";
 
+  // Where the passcode is kept, most durable first:
+  //  1. The address itself: .../photoframe/#passcode=XXXX. Kiosk apps keep
+  //     their start address in their own settings, which nothing wipes. The
+  //     part after # never leaves the device (it isn't sent to any server).
+  //  2. Browser storage (localStorage), which some kiosk apps and browsers
+  //     clear on restart or when space runs low.
+  //  3. A long-lived cookie, as a second copy in case storage is cleared.
+  function passcodeFromAddress() {
+    const m = window.location.hash.match(/(?:^#|&)(?:passcode|pass)=([^&]*)/);
+    if (!m) return "";
+    try { return decodeURIComponent(m[1].replace(/\+/g, " ")).trim(); } catch (e) { return m[1]; }
+  }
+  const COOKIE = "photoframe_passcode";
   function storedPasscode() {
-    try { return localStorage.getItem(PASS_KEY) || ""; } catch (e) { return ""; }
+    const fromAddress = passcodeFromAddress();
+    if (fromAddress) return fromAddress;
+    try { const v = localStorage.getItem(PASS_KEY); if (v) return v; } catch (e) {}
+    const c = document.cookie.match(new RegExp("(?:^|; )" + COOKIE + "=([^;]*)"));
+    if (c) { try { return decodeURIComponent(c[1]); } catch (e) {} }
+    return "";
   }
   function storePasscode(v) {
     try { v ? localStorage.setItem(PASS_KEY, v) : localStorage.removeItem(PASS_KEY); } catch (e) {}
+    const path = window.location.pathname.replace(/[^/]*$/, "");
+    document.cookie = v
+      ? `${COOKIE}=${encodeURIComponent(v)}; max-age=${60 * 60 * 24 * 3650}; path=${path}; SameSite=Strict; Secure`
+      : `${COOKIE}=; max-age=0; path=${path}; SameSite=Strict; Secure`;
   }
 
   // Shows the passcode screen and resolves with whatever is entered.
@@ -214,7 +236,13 @@
       if (data.error === "passcode") {
         storePasscode("");
         pass = "";
-        message = "That passcode didn't work. Try again.";
+        message = passcodeFromAddress() && !message
+          ? "The passcode in this frame's address didn't work. Enter it here, then fix the address."
+          : "That passcode didn't work. Try again.";
+        if (passcodeFromAddress()) {
+          pass = await askPasscode(message);
+          message = "That passcode didn't work. Try again.";
+        }
         continue;
       }
       if (data.error === "locked") {
